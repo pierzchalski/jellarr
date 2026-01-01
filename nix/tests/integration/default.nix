@@ -1,5 +1,5 @@
 {pkgs}: let
-  tests = ["sanity"];
+  tests = ["sanity" "api-bootstrap"];
 in
   builtins.listToAttrs (map (name: {
       inherit name;

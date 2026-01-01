@@ -653,4 +653,229 @@ describe("RootConfig", () => {
       expect(result.error.issues.length).toBeGreaterThan(0);
     }
   });
+
+  it("should validate root config with admin section using password", () => {
+    // Arrange
+    const validConfig: z.input<typeof RootConfigType> = {
+      version: 1,
+      base_url: "http://10.0.0.76:8096",
+      system: {},
+      admin: {
+        username: "admin",
+        password: "secretpassword",
+      },
+    };
+
+    // Act
+    const result: ZodSafeParseResult<RootConfig> =
+      RootConfigType.safeParse(validConfig);
+
+    // Assert
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.admin).toBeDefined();
+      expect(result.data.admin?.username).toBe("admin");
+      expect(result.data.admin?.password).toBe("secretpassword");
+    }
+  });
+
+  it("should validate root config with admin section using password_file", () => {
+    // Arrange
+    const validConfig: z.input<typeof RootConfigType> = {
+      version: 1,
+      base_url: "http://10.0.0.76:8096",
+      system: {},
+      admin: {
+        username: "admin",
+        password_file: "/run/secrets/admin-password",
+      },
+    };
+
+    // Act
+    const result: ZodSafeParseResult<RootConfig> =
+      RootConfigType.safeParse(validConfig);
+
+    // Assert
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.admin).toBeDefined();
+      expect(result.data.admin?.username).toBe("admin");
+      expect(result.data.admin?.password_file).toBe("/run/secrets/admin-password");
+    }
+  });
+
+  it("should reject admin config with both password and password_file", () => {
+    // Arrange
+    const invalidConfig: z.input<typeof RootConfigType> = {
+      version: 1,
+      base_url: "http://10.0.0.76:8096",
+      system: {},
+      admin: {
+        username: "admin",
+        password: "secretpassword",
+        password_file: "/run/secrets/admin-password",
+      },
+    };
+
+    // Act
+    const result: ZodSafeParseResult<RootConfig> =
+      RootConfigType.safeParse(invalidConfig);
+
+    // Assert
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues).toBeDefined();
+      expect(result.error.issues.length).toBeGreaterThan(0);
+      const adminError: z.core.$ZodIssue | undefined = result.error.issues.find(
+        (err: z.core.$ZodIssue) =>
+          err.message.includes("exactly one of 'password' or 'password_file'"),
+      );
+      expect(adminError).toBeDefined();
+    }
+  });
+
+  it("should reject admin config with neither password nor password_file", () => {
+    // Arrange
+    const invalidConfig: z.input<typeof RootConfigType> = {
+      version: 1,
+      base_url: "http://10.0.0.76:8096",
+      system: {},
+      admin: {
+        username: "admin",
+      },
+    };
+
+    // Act
+    const result: ZodSafeParseResult<RootConfig> =
+      RootConfigType.safeParse(invalidConfig);
+
+    // Assert
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues).toBeDefined();
+      expect(result.error.issues.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("should validate root config with api_key section", () => {
+    // Arrange
+    const validConfig: z.input<typeof RootConfigType> = {
+      version: 1,
+      base_url: "http://10.0.0.76:8096",
+      system: {},
+      api_key: {
+        name: "my-app",
+        file: "/var/lib/jellarr/api-key",
+      },
+    };
+
+    // Act
+    const result: ZodSafeParseResult<RootConfig> =
+      RootConfigType.safeParse(validConfig);
+
+    // Assert
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.api_key).toBeDefined();
+      expect(result.data.api_key?.name).toBe("my-app");
+      expect(result.data.api_key?.file).toBe("/var/lib/jellarr/api-key");
+    }
+  });
+
+  it("should validate api_key with default name", () => {
+    // Arrange
+    const validConfig: z.input<typeof RootConfigType> = {
+      version: 1,
+      base_url: "http://10.0.0.76:8096",
+      system: {},
+      api_key: {
+        file: "/var/lib/jellarr/api-key",
+      },
+    };
+
+    // Act
+    const result: ZodSafeParseResult<RootConfig> =
+      RootConfigType.safeParse(validConfig);
+
+    // Assert
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.api_key).toBeDefined();
+      expect(result.data.api_key?.name).toBe("jellarr");
+      expect(result.data.api_key?.file).toBe("/var/lib/jellarr/api-key");
+    }
+  });
+
+  it("should reject api_key with empty file path", () => {
+    // Arrange
+    const invalidConfig: z.input<typeof RootConfigType> = {
+      version: 1,
+      base_url: "http://10.0.0.76:8096",
+      system: {},
+      api_key: {
+        file: "",
+      },
+    };
+
+    // Act
+    const result: ZodSafeParseResult<RootConfig> =
+      RootConfigType.safeParse(invalidConfig);
+
+    // Assert
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues).toBeDefined();
+      expect(result.error.issues.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("should validate root config with admin and api_key for bootstrapping", () => {
+    // Arrange
+    const validConfig: z.input<typeof RootConfigType> = {
+      version: 1,
+      base_url: "http://10.0.0.76:8096",
+      system: {},
+      admin: {
+        username: "admin",
+        password_file: "/run/secrets/admin-password",
+      },
+      api_key: {
+        name: "jellarr",
+        file: "/var/lib/jellarr/api-key",
+      },
+    };
+
+    // Act
+    const result: ZodSafeParseResult<RootConfig> =
+      RootConfigType.safeParse(validConfig);
+
+    // Assert
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.admin).toBeDefined();
+      expect(result.data.api_key).toBeDefined();
+      expect(result.data.admin?.username).toBe("admin");
+      expect(result.data.api_key?.file).toBe("/var/lib/jellarr/api-key");
+    }
+  });
+
+  it("should validate root config with state_dir", () => {
+    // Arrange
+    const validConfig: z.input<typeof RootConfigType> = {
+      version: 1,
+      base_url: "http://10.0.0.76:8096",
+      system: {},
+      state_dir: "/var/lib/jellarr",
+    };
+
+    // Act
+    const result: ZodSafeParseResult<RootConfig> =
+      RootConfigType.safeParse(validConfig);
+
+    // Assert
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.state_dir).toBe("/var/lib/jellarr");
+    }
+  });
 });

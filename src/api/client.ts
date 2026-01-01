@@ -20,3 +20,22 @@ export function makeClient(baseUrl: string, apiKey: string): Client<paths> {
 
   return client;
 }
+
+export function makeUnauthenticatedClient(baseUrl: string): Client<paths> {
+  const client: Client<paths> = createClient<paths>({
+    baseUrl: baseUrl.replace(/\/+$/, ""),
+  });
+
+  client.use({
+    onRequest({ request }: { request: Request }): Request {
+      const headers: Headers = new Headers(request.headers);
+      headers.set(
+        "X-Emby-Authorization",
+        'MediaBrowser Client="jellarr", Device="cli", DeviceId="jellarr-bootstrap", Version="0.0.3"',
+      );
+      return new Request(request, { headers });
+    },
+  });
+
+  return client;
+}

@@ -6,7 +6,9 @@
 }: let
   cfg = config.services.jellarr;
   bootstrapCfg = cfg.bootstrap;
+  apiBootstrapCfg = cfg.apiBootstrap;
   bootstrapEnabled = cfg.enable && bootstrapCfg.enable;
+  apiBootstrapEnabled = cfg.enable && apiBootstrapCfg.enable;
 
   pkg = import ../package.nix {inherit lib pkgs;};
 in {
@@ -19,7 +21,8 @@ in {
               "network-online.target"
               "systemd-tmpfiles-setup.service"
             ]
-            ++ lib.optional bootstrapEnabled "jellarr-api-key-bootstrap.service";
+            ++ lib.optional bootstrapEnabled "jellarr-api-key-bootstrap.service"
+            ++ lib.optional apiBootstrapEnabled "jellarr-api-bootstrap.service";
           description = "Run jellarr (packaged) once";
           preStart = let
             configFile = pkgs.writeText "jellarr-config.yml" (pkgs.lib.generators.toYAML {} cfg.config);
@@ -131,6 +134,101 @@ in {
           Type = "oneshot";
           User = "root";
         };
+        wantedBy = ["multi-user.target"];
+      };
+    })
+
+    (lib.mkIf apiBootstrapEnabled {
+      assertions = [
+        {
+          assertion = apiBootstrapCfg.adminUser.passwordFile != null;
+          message = "services.jellarr.apiBootstrap.adminUser.passwordFile must be set when apiBootstrap is enabled.";
+        }
+        {
+          assertion = apiBootstrapCfg.apiKeyOutputFile != null;
+          message = "services.jellarr.apiBootstrap.apiKeyOutputFile must be set when apiBootstrap is enabled.";
+        }
+        {
+          assertion = !(bootstrapCfg.enable && apiBootstrapCfg.enable);
+          message = "Cannot enable both services.jellarr.bootstrap and services.jellarr.apiBootstrap at the same time.";
+        }
+      ];
+
+      systemd.services.jellarr-api-bootstrap = {
+        after = [
+          "network-online.target"
+          "systemd-tmpfiles-setup.service"
+        ];
+        description = "Bootstrap Jellyfin via API for Jellarr (no database access required)";
+        path = [
+          pkgs.coreutils
+          pkgs.curl
+        ];
+        preStart = let
+          bootstrapConfigFile = pkgs.writeText "jellarr-bootstrap.yml" (pkgs.lib.generators.toYAML {} {
+            adminUser = {
+              name = apiBootstrapCfg.adminUser.name;
+              passwordFile = apiBootstrapCfg.adminUser.passwordFile;
+            };
+            apiKey = {
+              name = apiBootstrapCfg.apiKeyName;
+              outputFile = apiBootstrapCfg.apiKeyOutputFile;
+            };
+            serverName = apiBootstrapCfg.serverName;
+            remoteAccess = {
+              enableRemoteAccess = apiBootstrapCfg.remoteAccess.enable;
+              enableAutomaticPortMapping = apiBootstrapCfg.remoteAccess.enableAutomaticPortMapping;
+            };
+          });
+        in
+          # sh
+          ''
+            install -D -m 0644 ${bootstrapConfigFile} ${cfg.dataDir}/config/bootstrap.yml
+            chown ${cfg.user}:${cfg.group} ${cfg.dataDir}/config/bootstrap.yml
+
+            # Wait for Jellyfin to be ready
+            for i in $(seq 1 120); do
+              ${pkgs.curl}/bin/curl -sf ${cfg.config.base_url}/System/Info/Public >/dev/null && exit 0
+              sleep 1
+            done
+
+            echo "Jellyfin not running or not ready at ${cfg.config.base_url}"
+            exit 1
+          '';
+        script = let
+          markerFile = "${cfg.dataDir}/.api-bootstrap-complete";
+        in
+          # sh
+          ''
+            set -euo pipefail
+
+            if [ -f "${markerFile}" ]; then
+              echo "API bootstrap already completed (marker file exists). Skipping."
+              exit 0
+            fi
+
+            ${lib.getExe pkg} bootstrap \
+              --baseUrl "${cfg.config.base_url}" \
+              --configFile "${cfg.dataDir}/config/bootstrap.yml"
+
+            touch "${markerFile}"
+            chown ${cfg.user}:${cfg.group} "${markerFile}"
+
+            # Generate environment file for jellarr service
+            if [ -f "${apiBootstrapCfg.apiKeyOutputFile}" ]; then
+              API_KEY=$(cat "${apiBootstrapCfg.apiKeyOutputFile}" | tr -d '[:space:]')
+              echo "JELLARR_API_KEY=$API_KEY" > "${cfg.dataDir}/jellarr.env"
+              chmod 0600 "${cfg.dataDir}/jellarr.env"
+              chown ${cfg.user}:${cfg.group} "${cfg.dataDir}/jellarr.env"
+            fi
+          '';
+        serviceConfig = {
+          Group = cfg.group;
+          Type = "oneshot";
+          User = cfg.user;
+          WorkingDirectory = cfg.dataDir;
+        };
+        wants = ["network-online.target"];
         wantedBy = ["multi-user.target"];
       };
     })

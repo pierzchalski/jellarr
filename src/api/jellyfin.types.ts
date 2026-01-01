@@ -11,6 +11,13 @@ import type {
   CreateUserByNameSchema,
   UserPolicySchema,
 } from "../types/schema/users";
+import type {
+  StartupConfigurationDtoSchema,
+  StartupUserDtoSchema,
+  StartupRemoteAccessDtoSchema,
+  AuthenticationResultSchema,
+  AuthenticationInfoQueryResultSchema,
+} from "../types/schema/bootstrap";
 
 export interface ApiResponse<T = unknown> {
   data?: T;
@@ -31,6 +38,16 @@ export type GetUsersResponse = ApiResponse<UserDtoSchema[]>;
 export type PostNewUserResponse = ApiResponse<UserDtoSchema>;
 export type PostUserPolicyResponse = ApiResponse<void>;
 export type PostStartupCompleteResponse = ApiResponse<void>;
+export type GetStartupConfigurationResponse =
+  ApiResponse<StartupConfigurationDtoSchema>;
+export type PostStartupConfigurationResponse = ApiResponse<void>;
+export type GetStartupUserResponse = ApiResponse<StartupUserDtoSchema>;
+export type PostStartupUserResponse = ApiResponse<void>;
+export type PostStartupRemoteAccessResponse = ApiResponse<void>;
+export type PostAuthenticateByNameResponse =
+  ApiResponse<AuthenticationResultSchema>;
+export type GetApiKeysResponse = ApiResponse<AuthenticationInfoQueryResultSchema>;
+export type PostCreateApiKeyResponse = ApiResponse<void>;
 
 export interface JellyfinClient {
   getSystemConfiguration(): Promise<ServerConfigurationSchema>;
@@ -55,4 +72,17 @@ export interface JellyfinClient {
   createUser(body: CreateUserByNameSchema): Promise<void>;
   updateUserPolicy(userId: string, body: UserPolicySchema): Promise<void>;
   completeStartupWizard(): Promise<void>;
+  getStartupConfiguration(): Promise<StartupConfigurationDtoSchema>;
+  updateStartupConfiguration(
+    body: StartupConfigurationDtoSchema,
+  ): Promise<void>;
+  getStartupUser(): Promise<StartupUserDtoSchema>;
+  updateStartupUser(body: StartupUserDtoSchema): Promise<void>;
+  setRemoteAccess(body: StartupRemoteAccessDtoSchema): Promise<void>;
+  authenticateByName(
+    username: string,
+    password: string,
+  ): Promise<AuthenticationResultSchema>;
+  getApiKeys(): Promise<AuthenticationInfoQueryResultSchema>;
+  createApiKey(appName: string): Promise<void>;
 }
